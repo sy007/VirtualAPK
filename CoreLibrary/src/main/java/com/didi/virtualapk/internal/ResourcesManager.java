@@ -46,21 +46,21 @@ import java.util.Objects;
  * Created by renyugang on 16/8/9.
  */
 class ResourcesManager {
-    
+
     public static final String TAG = Constants.TAG_PREFIX + "LoadedPlugin";
 
     private static Configuration mDefaultConfiguration;
-    
+
     public static synchronized Resources createResources(Context hostContext, String packageName, File apk) throws Exception {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             return createResourcesForN(hostContext, packageName, apk);
         }
-        
+
         Resources resources = ResourcesManager.createResourcesSimple(hostContext, apk.getAbsolutePath());
         ResourcesManager.hookResources(hostContext, resources);
         return resources;
     }
-    
+
     private static Resources createResourcesSimple(Context hostContext, String apk) throws Exception {
         Resources hostResources = hostContext.getResources();
         Resources newResources = null;
@@ -69,7 +69,8 @@ class ResourcesManager {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             assetManager = AssetManager.class.newInstance();
             reflector.bind(assetManager);
-            final int cookie1 = reflector.call(hostContext.getApplicationInfo().sourceDir);;
+            final int cookie1 = reflector.call(hostContext.getApplicationInfo().sourceDir);
+            ;
             if (cookie1 == 0) {
                 throw new RuntimeException("createResources failed, can't addAssetPath for " + hostContext.getApplicationInfo().sourceDir);
             }
@@ -104,7 +105,7 @@ class ResourcesManager {
         for (LoadedPlugin plugin : pluginList) {
             plugin.updateResources(newResources);
         }
-        
+
         return newResources;
     }
 
@@ -132,7 +133,7 @@ class ResourcesManager {
             Log.w(TAG, e);
         }
     }
-    
+
     /**
      * Use System Apis to update all existing resources.
      * <br/>
@@ -142,7 +143,7 @@ class ResourcesManager {
      * <br/>
      * 3. Use ResourcesManager.appendLibAssetForMainAssetPath(appInfo.publicSourceDir, "${packageName}.vastub") to update all existing resources.
      * <br/>
-     *
+     * <p>
      * see android.webkit.WebViewDelegate.addWebViewAssetPath(Context)
      */
     @TargetApi(Build.VERSION_CODES.N)
@@ -151,50 +152,50 @@ class ResourcesManager {
         String newAssetPath = apk.getAbsolutePath();
         ApplicationInfo info = context.getApplicationInfo();
         String baseResDir = info.publicSourceDir;
-        
+
         info.splitSourceDirs = append(info.splitSourceDirs, newAssetPath);
         LoadedApk loadedApk = Reflector.with(context).field("mPackageInfo").get();
-    
+
         Reflector rLoadedApk = Reflector.with(loadedApk).field("mSplitResDirs");
         String[] splitResDirs = rLoadedApk.get();
         rLoadedApk.set(append(splitResDirs, newAssetPath));
-    
+
         final android.app.ResourcesManager resourcesManager = android.app.ResourcesManager.getInstance();
         ArrayMap<ResourcesKey, WeakReference<ResourcesImpl>> originalMap = Reflector.with(resourcesManager).field("mResourceImpls").get();
-    
+
         synchronized (resourcesManager) {
             HashMap<ResourcesKey, WeakReference<ResourcesImpl>> resolvedMap = new HashMap<>();
-    
-            if (Build.VERSION.SDK_INT >= 28
-                || (Build.VERSION.SDK_INT == 27 && Build.VERSION.PREVIEW_SDK_INT != 0)) { // P Preview
-                ResourcesManagerCompatForP.resolveResourcesImplMap(originalMap, resolvedMap, context, loadedApk);
 
+            if (Build.VERSION.SDK_INT >= 28
+                    || (Build.VERSION.SDK_INT == 27 && Build.VERSION.PREVIEW_SDK_INT != 0)) { // P Preview
+                //Android9.0以上处理包括9.0
+                ResourcesManagerCompatForP.resolveResourcesImplMap(originalMap, resolvedMap, context, loadedApk);
             } else {
+                //Android7.0,8.0处理
                 ResourcesManagerCompatForN.resolveResourcesImplMap(originalMap, resolvedMap, baseResDir, newAssetPath);
             }
-    
             originalMap.clear();
             originalMap.putAll(resolvedMap);
         }
-    
+
         android.app.ResourcesManager.getInstance().appendLibAssetForMainAssetPath(baseResDir, packageName + ".vastub");
-    
+
         Resources newResources = context.getResources();
-    
+
         // lastly, sync all LoadedPlugin to newResources
         for (LoadedPlugin plugin : PluginManager.getInstance(context).getAllLoadedPlugins()) {
             plugin.updateResources(newResources);
         }
-    
+
         Log.d(TAG, "createResourcesForN cost time: +" + (System.currentTimeMillis() - startTime) + "ms");
         return newResources;
     }
-    
+
     private static String[] append(String[] paths, String newPath) {
         if (contains(paths, newPath)) {
             return paths;
         }
-        
+
         final int newPathsCount = 1 + (paths != null ? paths.length : 0);
         final String[] newPaths = new String[newPathsCount];
         if (paths != null) {
@@ -203,7 +204,7 @@ class ResourcesManager {
         newPaths[newPathsCount - 1] = newPath;
         return newPaths;
     }
-    
+
     @TargetApi(Build.VERSION_CODES.KITKAT)
     private static boolean contains(String[] array, String value) {
         if (array == null) {
@@ -237,7 +238,7 @@ class ResourcesManager {
         private static Resources createResources(Resources hostResources, AssetManager assetManager) throws Exception {
             Reflector reflector = Reflector.on("android.content.res.MiuiResources");
             Resources newResources = reflector.constructor(AssetManager.class, DisplayMetrics.class, Configuration.class)
-                .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
+                    .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
             return newResources;
         }
     }
@@ -246,7 +247,7 @@ class ResourcesManager {
         private static Resources createResources(Context hostContext, Resources hostResources, AssetManager assetManager) throws Exception {
             Reflector reflector = Reflector.on("android.content.res.VivoResources");
             Resources newResources = reflector.constructor(AssetManager.class, DisplayMetrics.class, Configuration.class)
-                .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
+                    .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
             reflector.method("init", String.class).callByCaller(newResources, hostContext.getPackageName());
             reflector.field("mThemeValues");
             reflector.set(newResources, reflector.get(hostResources));
@@ -258,7 +259,7 @@ class ResourcesManager {
         private static Resources createResources(Resources hostResources, AssetManager assetManager) throws Exception {
             Reflector reflector = Reflector.on("android.content.res.NubiaResources");
             Resources newResources = reflector.constructor(AssetManager.class, DisplayMetrics.class, Configuration.class)
-                .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
+                    .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
             return newResources;
         }
     }
@@ -269,7 +270,7 @@ class ResourcesManager {
             try {
                 Reflector reflector = Reflector.with(hostResources);
                 newResources = reflector.constructor(AssetManager.class, DisplayMetrics.class, Configuration.class)
-                    .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
+                        .newInstance(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
             } catch (Exception e) {
                 newResources = new Resources(assetManager, hostResources.getDisplayMetrics(), hostResources.getConfiguration());
             }
@@ -279,43 +280,43 @@ class ResourcesManager {
     }
 
     private static final class ResourcesManagerCompatForN {
-        
+
         @TargetApi(Build.VERSION_CODES.KITKAT)
         public static void resolveResourcesImplMap(Map<ResourcesKey, WeakReference<ResourcesImpl>> originalMap, Map<ResourcesKey, WeakReference<ResourcesImpl>> resolvedMap, String baseResDir, String newAssetPath) throws Exception {
             for (Map.Entry<ResourcesKey, WeakReference<ResourcesImpl>> entry : originalMap.entrySet()) {
                 ResourcesKey key = entry.getKey();
                 if (Objects.equals(key.mResDir, baseResDir)) {
                     resolvedMap.put(new ResourcesKey(key.mResDir,
-                        append(key.mSplitResDirs, newAssetPath),
-                        key.mOverlayDirs,
-                        key.mLibDirs,
-                        key.mDisplayId,
-                        key.mOverrideConfiguration,
-                        key.mCompatInfo), entry.getValue());
+                            append(key.mSplitResDirs, newAssetPath),
+                            key.mOverlayDirs,
+                            key.mLibDirs,
+                            key.mDisplayId,
+                            key.mOverrideConfiguration,
+                            key.mCompatInfo), entry.getValue());
                 } else {
                     resolvedMap.put(key, entry.getValue());
                 }
             }
         }
     }
-    
+
     private static final class ResourcesManagerCompatForP {
-        
+
         @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
         public static void resolveResourcesImplMap(Map<ResourcesKey, WeakReference<ResourcesImpl>> originalMap, Map<ResourcesKey, WeakReference<ResourcesImpl>> resolvedMap, Context context, LoadedApk loadedApk) throws Exception {
             HashMap<ResourcesImpl, Context> newResImplMap = new HashMap<>();
             Map<ResourcesImpl, ResourcesKey> resKeyMap = new HashMap<>();
             Resources newRes;
-        
+
             // Recreate the resImpl of the context
-        
+
             // See LoadedApk.getResources()
             if (mDefaultConfiguration == null) {
                 mDefaultConfiguration = new Configuration();
             }
             newRes = context.createConfigurationContext(mDefaultConfiguration).getResources();
             newResImplMap.put(newRes.getImpl(), context);
-        
+
             // Recreate the ResImpl of the activity
             for (WeakReference<Activity> ref : PluginManager.getInstance(context).getInstrumentation().getActivities()) {
                 Activity activity = ref.get();
@@ -324,7 +325,7 @@ class ResourcesManager {
                     newResImplMap.put(newRes.getImpl(), activity);
                 }
             }
-        
+
             // Mapping all resKey and resImpl
             for (Map.Entry<ResourcesKey, WeakReference<ResourcesImpl>> entry : originalMap.entrySet()) {
                 ResourcesImpl resImpl = entry.getValue().get();
@@ -333,12 +334,12 @@ class ResourcesManager {
                 }
                 resolvedMap.put(entry.getKey(), entry.getValue());
             }
-        
+
             // Replace the resImpl to the new resKey and remove the origin resKey
             for (Map.Entry<ResourcesImpl, Context> entry : newResImplMap.entrySet()) {
                 ResourcesKey newKey = resKeyMap.get(entry.getKey());
                 ResourcesImpl originResImpl = entry.getValue().getResources().getImpl();
-            
+
                 resolvedMap.put(newKey, new WeakReference<>(originResImpl));
                 resolvedMap.remove(resKeyMap.get(originResImpl));
             }

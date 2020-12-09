@@ -1,5 +1,5 @@
 apply plugin: 'com.android.application'
-
+apply plugin: 'com.didi.virtualapk.plugin'
 android {
     compileSdkVersion VERSION_COMPILE_SDK
     buildToolsVersion VERSION_BUILD_TOOLS
@@ -57,7 +57,7 @@ dependencies {
 //    implementation 'com.didi.virtualapk:core:0.9.8'
 }
 
-apply plugin: 'com.didi.virtualapk.plugin'
+
 
 virtualApk {
     packageId = 0x6f // the package id of Resources.

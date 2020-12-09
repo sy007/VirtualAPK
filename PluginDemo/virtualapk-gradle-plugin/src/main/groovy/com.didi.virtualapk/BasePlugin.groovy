@@ -60,6 +60,7 @@ public abstract class BasePlugin implements Plugin<Project> {
          * 代理VariantFactory的原因是为了监听preVariantWork的调用，preVariantWork 在创建Android Tasks之前
          * 具体在VariantManager#createAndroidTasks()中会调用preVariantWork
          * 为什么要监听preVariantWork的调用？
+         * 这是因为监听Terminal 输入 gradlew 命令？
          */
         VariantFactory variantFactory = Proxy.newProxyInstance(this.class.classLoader, [VariantFactory.class] as Class[],
                 new InvocationHandler() {
@@ -98,20 +99,26 @@ public abstract class BasePlugin implements Plugin<Project> {
 
             android.applicationVariants.each { ApplicationVariantImpl variant ->
                 if ('release' == variant.buildType.name) {
+                    //assemble${productFlavors}${buildType}Plugin
                     String variantAssembleTaskName = variant.variantData.scope.getTaskName('assemble', 'Plugin')
+                    //assemble${productFlavors}Plugin
                     def final variantPluginTaskName = createPluginTaskName(variantAssembleTaskName)
                     final def configAction = new AssemblePlugin.ConfigAction(project, variant)
-
+                    //创建assemble${productFlavors}Plugin Task
                     taskFactory.create(variantPluginTaskName, AssemblePlugin, configAction)
 
                     Action action = new Action<Task>() {
                         @Override
                         void execute(Task task) {
+                            //assemblePlugin 依赖 assemble${productFlavors}Plugin
+                            //也就是说执行assemblePlugin时会执行所有的assemble${productFlavors}Plugin
+                            //assemblePlugin只是一个快捷入口
                             task.dependsOn(variantPluginTaskName)
                         }
                     }
 
                     if (project.extensions.extraProperties.get(Constants.GRADLE_3_1_0)) {
+                        //Task配置阶段执行action
                         taskFactory.configure("assemblePlugin", action)
                     } else {
                         taskFactory.named("assemblePlugin", action)
@@ -130,6 +137,12 @@ public abstract class BasePlugin implements Plugin<Project> {
         return name.replace('Release', '')
     }
 
+    /**
+     * 该方法的作用判断是否在控制台执行gradlew assemble${productFlavors}Plugin 任务
+     * @param appPlugin
+     * @param project
+     * @return
+     */
     private boolean evaluateBuildingPlugin(AppPlugin appPlugin, Project project) {
         def startParameter = project.gradle.startParameter
         def targetTasks = startParameter.taskNames
